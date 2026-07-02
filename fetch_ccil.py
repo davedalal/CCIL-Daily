@@ -1,22 +1,4 @@
-"""
-CCIL Daily Market Analytics — fetch and email
 
-Finds today's "Daily Market Analytics" PDF on CCIL's research pages,
-downloads it, and emails it. Designed to run unattended via GitHub Actions.
-
-Required environment variables (set as GitHub repo secrets):
-EMAIL_USER - sender Gmail address
-EMAIL_APP_PASSWORD - Gmail app password (not your normal password)
-RECIPIENT_EMAIL - where to send the PDF
-
-Exit codes:
-0 = success (PDF found and emailed)
-1 = failure (also sends a failure-notification email if possible)
-"""
-
-import os
-import re
-import sys
 import smtplib
 from datetime import datetime, timezone, timedelta
 from email.message import EmailMessage
@@ -140,7 +122,8 @@ subtype="pdf",
 filename=attachment_name,
 )
 
-with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+with smtplib.SMTP("smtp.office365.com", 587) as smtp:
+smtp.starttls()
 smtp.login(user, password)
 smtp.send_message(msg)
 
