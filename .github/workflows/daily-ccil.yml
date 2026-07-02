@@ -17,4 +17,5 @@ jobs:
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          RECEIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
 RECIPIENT_EMAIL: ${{ secrets.RECIPIENT_EMAIL }}
