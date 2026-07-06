@@ -1,0 +1,79 @@
+name: Daily INR Rates & FX Intelligence
+
+on:
+  push:
+    paths:
+      - "inbox/**"
+  workflow_dispatch: {}   # lets you click "Run workflow" manually in the Actions tab
+  schedule:
+    # 09:30 IST = 04:00 UTC. fetch_ccil.py now attempts a real automated download
+    # (no login needed - confirmed) via a headless browser, since CCIL's site
+    # blocks plain HTTP requests but not real browser traffic. This is best-effort
+    # (continue-on-error) - if it's blocked (e.g. GitHub's shared-runner IPs get
+    # flagged even with a real browser fingerprint) or CCIL changes their page
+    # template, the run falls back to whatever you've manually pushed to inbox/.
+    # WSS and Arete are not yet automated this way - still drop those manually.
+    - cron: "0 4 * * 1-5"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browser (for CCIL fetch)
+        run: playwright install --with-deps chromium
+
+      - name: Attempt automated CCIL fetch (best-effort - falls back to inbox/ if blocked)
+        continue-on-error: true   # bot-detection or template changes shouldn't fail the whole run
+        run: python scripts/fetch_ccil.py --out inbox
+
+      - name: Extract raw reports (unzip disguised PDFs / detect real PDFs)
+        run: python scripts/extract_reports.py --inbox inbox --out data/raw_extract
+
+      - name: Parse CCIL report
+        run: python scripts/parse_ccil.py --extract data/raw_extract --out data/raw
+
+      - name: Parse WSS report
+        run: python scripts/parse_wss.py --extract data/raw_extract --out data/raw
+
+      - name: Merge into rolling history
+        run: python scripts/build_dataset.py --raw data/raw --history data/consolidated/history.json
+
+      - name: Run Claude analysis
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python scripts/run_analysis.py --history data/consolidated/history.json --out data/consolidated/report_sections.json
+
+      - name: Render dashboard (.jsx)
+        run: python scripts/render_dashboard.py --sections data/consolidated/report_sections.json --template templates/dashboard_template.jsx --out outputs/${{ github.run_id }}/dashboard.jsx
+
+      - name: Render PDF
+        run: python scripts/render_pdf.py --sections data/consolidated/report_sections.json --out outputs/${{ github.run_id }}/report.pdf
+
+      - name: Rename output folder to today's date
+        run: |
+          TODAY=$(date +%Y-%m-%d)
+          mkdir -p "outputs/$TODAY"
+          mv outputs/${{ github.run_id }}/* "outputs/$TODAY"/
+          rmdir outputs/${{ github.run_id }}
+
+      - name: Commit outputs back to repo
+        run: |
+          git config user.name "daily-intel-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add outputs/ data/consolidated/
+          git diff --cached --quiet || git commit -m "Daily run: $(date +%F)"
+          git push
