@@ -1,7 +1,6 @@
 # INR Daily Rates & FX Intelligence — Automation
 
-Automates everything **after** you download the raw CCIL / RBI WSS / Arete files
-(CCIL itself is now attempted automatically too — see `fetch_ccil.py` below).
+Automates everything **after** you download the raw CCIL / RBI WSS / Arete files.
 Two ways to run the pipeline; pick one:
 
 | | Path A: Claude Code Routine | Path B: GitHub Actions |
@@ -9,35 +8,39 @@ Two ways to run the pipeline; pick one:
 | **Billing** | Your existing Pro/Max/Team/Enterprise subscription — no extra cost | Metered Anthropic API tokens (billed per run) |
 | **Setup** | Paste `ROUTINE_PROMPT.md` into a Routine at claude.ai/code/routines | Push repo + add `ANTHROPIC_API_KEY` secret |
 | **Analysis step** | Claude writes `report_sections.json` itself, in-session | `run_analysis.py` calls the API |
+| **Automated CCIL fetch** | **Doesn't work** — confirmed the sandbox has no general internet egress (see below) | Best-effort — has full outbound internet, subject to bot-detection risk (see below) |
+| **File drop needed** | All 3 files (CCIL, WSS, Arete) manually into `inbox/` | WSS + Arete manually; CCIL attempted automatically |
 | **Status** | Research preview — behavior may change | Stable, standard CI |
-| **Best for** | Individual use, avoiding token cost | Teams, or wanting a traditional always-on CI setup |
+| **Best for** | Individual use, avoiding token cost | Teams, or wanting full unattended fetch a real chance of working |
 
 Both paths run the exact same deterministic scripts (`extract_reports.py`,
 `parse_ccil.py`, `parse_wss.py`, `build_dataset.py`, `render_markdown.py`,
 `render_html.py`, `render_pdf.py`) — the only difference is *who* writes the
-narrative analysis and *how that step gets billed*. Use one or the other, not
-both at once.
+narrative analysis, *how that step gets billed*, and *whether CCIL's download
+can be automated at all*. Use one or the other, not both at once.
 
 ```
-you download WSS/Arete files manually (fetch_ccil.py attempts CCIL automatically)
+you download all 3 files manually (Routine path)
+   or WSS/Arete manually, CCIL attempted automatically (GitHub Actions path)
         │
         ▼
-   drop into inbox/, push        (Routine picks up whatever's there on its own schedule)
+   drop into inbox/, push
         │
         ▼
-┌── Claude Code Routine (primary) — or GitHub Actions, if you set that up instead ──┐
-│  1. fetch_ccil.py       -> best-effort automated CCIL download                    │
-│  2. extract_reports.py  -> unzips the disguised-as-PDF files                      │
-│  3. parse_ccil.py /                                                               │
-│     parse_wss.py        -> regex-pulls tables into data/raw/*.json                │
-│  4. build_dataset.py    -> merges into data/consolidated/history.json             │
-│  5. ANALYSIS: Claude writes report_sections.json directly in-session              │
-│     (or run_analysis.py -> API call, metered, GitHub Actions path only)           │
-│  6. render_markdown.py  -> report.md   (renders inline on github.com)             │
-│  7. render_html.py      -> report.html (self-contained, open in a browser)        │
-│  8. render_pdf.py       -> reportlab + matplotlib -> report.pdf                   │
-│  9. commit + push outputs back to the repo                                       │
-└────────────────────────────────────────────────────────────────────────────────────┘
+┌── Claude Code Routine — or GitHub Actions, whichever path you set up ──┐
+│  1. fetch_ccil.py       -> GitHub Actions only; skipped entirely on    │
+│                            the Routine path (sandboxed, no egress)     │
+│  2. extract_reports.py  -> unzips the disguised-as-PDF files           │
+│  3. parse_ccil.py /                                                    │
+│     parse_wss.py        -> regex-pulls tables into data/raw/*.json     │
+│  4. build_dataset.py    -> merges into data/consolidated/history.json  │
+│  5. ANALYSIS: Claude writes report_sections.json directly in-session   │
+│     (or run_analysis.py -> API call, metered, GitHub Actions path only)│
+│  6. render_markdown.py  -> report.md   (renders inline on github.com)  │
+│  7. render_html.py      -> report.html (self-contained, open in a browser)│
+│  8. render_pdf.py       -> reportlab + matplotlib -> report.pdf        │
+│  9. commit + push outputs back to the repo                             │
+└──────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Path A: Claude Code Routine (no extra token cost)
@@ -46,7 +49,8 @@ you download WSS/Arete files manually (fetch_ccil.py attempts CCIL automatically
    this path.
 2. Go to claude.ai/code/routines → create a new Routine.
 3. **Repository:** this repo. **Trigger:** Scheduled, weekday mornings, set after
-   your usual portal-download time.
+   you've already dropped all 3 files into `inbox/` and pushed — see the network
+   restriction below for why that's non-negotiable on this path.
 4. **Prompt:** open `ROUTINE_PROMPT.md` in this repo and paste its contents
    (everything under "Routine prompt" at the bottom of that file) into the
    Routine's prompt field.
@@ -59,6 +63,18 @@ you download WSS/Arete files manually (fetch_ccil.py attempts CCIL automatically
 That's it — no secret to add, no per-run bill. This is a research-preview
 feature, so run it alongside spot-checks for the first couple of weeks.
 
+**Confirmed by testing a real run: Routines have no general internet egress.**
+The first live run tried `fetch_ccil.py` and failed with a proxy-level error
+(`ERR_TUNNEL_CONNECTION_FAILED`). To isolate whether that was CCIL-specific
+(bot detection, changed page) or a total block, we tested `curl` against a
+completely unrelated, generic domain from inside the Routine — it got the exact
+same kind of failure (a 403 policy denial from the environment's egress proxy).
+That rules out CCIL's site as the cause: **the Routine sandbox can't reach any
+external website**, likely by design (an allowlist that includes GitHub, since
+that's core to how Routines work, and blocks everything else). `ROUTINE_PROMPT.md`
+reflects this — it doesn't attempt `fetch_ccil.py` at all, and all three files
+need to be manually in `inbox/` before the Routine runs.
+
 ## Path B: GitHub Actions (metered API billing)
 
 1. Push this repo to GitHub.
@@ -70,38 +86,46 @@ feature, so run it alongside spot-checks for the first couple of weeks.
 4. Every run that reaches the analysis step calls the Anthropic API and is
    billed per token — check console.anthropic.com's usage page if you want to
    track what this costs you.
+5. This is the only path where `fetch_ccil.py` has a chance of working at all,
+   since GitHub Actions runners have full outbound internet (unlike a Routine's
+   sandbox) — though still subject to the bot-detection caveat below, unproven
+   from GitHub's actual IP ranges specifically.
 
 ## Setup common to both paths
 
 1. `pip install -r requirements.txt` locally if you want to test scripts before
    relying on either path.
-2. `playwright install chromium` if you want to test `fetch_ccil.py` locally.
+2. `playwright install chromium` if you want to test `fetch_ccil.py` locally —
+   note this only makes sense to test for the GitHub Actions path; it will never
+   work inside a Routine, confirmed above.
 3. Adjust `parse_ccil.py` / `parse_wss.py` regexes if CCIL/RBI change their
    report format again (CCIL's report went from 6 pages to 8 between two of our
    manual runs — these parsers are the thing most likely to need occasional
    maintenance, regardless of which path runs them).
 
-## Daily flow (same for both paths)
+## Daily flow
+
+**Routine path:** download all 3 files yourself, drop into `inbox/`, push —
+every morning, before the Routine's scheduled run time.
 
 ```bash
-# each morning, after downloading WSS/Arete manually (CCIL is attempted automatically):
+mv ~/Downloads/CCIL_DAILY_ANALYSIS_*.pdf inr-daily-intel/inbox/
 mv ~/Downloads/WSS*.pdf inr-daily-intel/inbox/
 mv ~/Downloads/Daily_Fixed_Income_Report_*.pdf inr-daily-intel/inbox/   # when a new one exists
 cd inr-daily-intel
 git add inbox/ && git commit -m "data: $(date +%F)" && git push
 ```
 
-Pushing to `inbox/**` triggers the GitHub Actions path automatically (if you're
-using it). A Routine on a scheduled trigger runs independently on its own
-schedule and just picks up whatever's in `inbox/` (plus whatever `fetch_ccil.py`
-manages to grab itself) at run time.
+**GitHub Actions path:** same, but you can skip the CCIL line — `fetch_ccil.py`
+attempts it automatically as part of the workflow run. Pushing to `inbox/**`
+also triggers the Action automatically.
 
-## Why the CCIL fetch step is *partially* automated
+## Why the CCIL fetch step only works (maybe) on the GitHub Actions path
 
 Good news, discovered while setting this up: **CCIL's Daily Market Analytics
 report needs no login at all** — confirmed by testing in an incognito browser.
-So `scripts/fetch_ccil.py` attempts a real automated download every run, before
-falling back to whatever's manually in `inbox/`.
+So `scripts/fetch_ccil.py` attempts a real automated download on the GitHub
+Actions path, before falling back to whatever's manually in `inbox/`.
 
 The fetch turned out to need two different mechanisms, both confirmed by
 hand-testing:
@@ -120,35 +144,40 @@ hand-testing:
    non-browser clients, which is why splitting the two steps works.)
 
 This is meaningfully less fragile than login-automation would have been — no
-credentials to store or expire — but it's not bulletproof:
+credentials to store or expire — but it's not bulletproof, and it's specific to
+GitHub Actions:
 
-- **Not yet proven from GitHub Actions' or a Routine's actual runner IPs.**
-  Datacenter IP ranges are sometimes flagged by WAFs even when a home/office
-  connection isn't. Test this for real before trusting it unattended — the step
-  is wired with `continue-on-error: true` in the GitHub Actions path specifically
-  because it may not work every day, or ever, from CI, and the pipeline should
-  degrade gracefully to manual `inbox/` files rather than fail the whole run.
+- **Confirmed NOT to work on the Routine path at all** — see the network-egress
+  finding above. Don't put `fetch_ccil.py` in a Routine's prompt.
+- **Not yet proven from GitHub Actions' actual runner IPs.** Datacenter IP
+  ranges are sometimes flagged by WAFs even when a home/office connection isn't.
+  Test this for real before trusting it unattended — the step is wired with
+  `continue-on-error: true` specifically because it may not work every day, or
+  ever, from CI, and the pipeline should degrade gracefully to manual `inbox/`
+  files rather than fail the whole run.
 - **CCIL's page template can change** — `fetch_ccil.py` looks for a
   `guestUserCheck('...')` JS call embedded in the rendered page to find today's
   link; if CCIL redesigns the page, this breaks and needs a manual look/update,
   same as the CCIL/WSS *parsers* already do.
 - **WSS (RBI) and Arete are not automated this way yet.** RBI's WSS is also
-  genuinely public and worth the same treatment eventually; Arete is a private
-  analyst distribution and almost certainly needs to stay a manual download
-  regardless.
+  genuinely public and worth the same treatment eventually on the GitHub Actions
+  path; Arete is a private analyst distribution and almost certainly needs to
+  stay a manual download regardless of path.
 - **Compliance check still worth doing separately from the technical question:**
   CCIL's site states it does not authorize commercial use of its data without
   written permission. Automated retrieval for internal treasury analysis is a
   judgment call, not something this scaffold resolves for you — worth a quick
   check with compliance/legal.
 
-If `fetch_ccil.py` doesn't work reliably in your chosen path, the fallback is
-simply: you download manually and drop the file in `inbox/`, same as always.
+If `fetch_ccil.py` doesn't work reliably even on the GitHub Actions path, the
+fallback is simply: you download manually and drop the file in `inbox/`, same
+as the Routine path always requires.
 
 A middle ground that removes even the `git push` step: a small **local folder
 watcher** (`scripts/watch_and_push.py`, included) that watches your Downloads
 folder and auto-commits+pushes any new CCIL/WSS/Arete-looking file the moment
 you save it — so your only manual action is clicking "Download" in the browser.
+This works for both paths, since it runs on your own machine, not in a sandbox.
 
 ## Repo layout
 
@@ -175,7 +204,9 @@ you save it — so your only manual action is clicking "Download" in the browser
   signal descriptions, borrowing/hedging recommendation, scorecard tone
   (hawkish/dovish/neutral), gap flags for anything genuinely missing. This is the
   part that benefits from the same judgment applied in our manual runs, whichever
-  path is doing it.
+  path is doing it. On the first real Routine run with an empty `inbox/`, this
+  worked correctly — it reported zero data and skipped a recommendation rather
+  than inventing one, which is the intended behavior, not a bug.
 
 ## Notifications (optional, not scaffolded)
 
