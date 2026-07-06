@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.DS_Store
+inbox/*.pdf
+inbox/*.PDF
+data/raw_extract/
+data/raw/*.json
