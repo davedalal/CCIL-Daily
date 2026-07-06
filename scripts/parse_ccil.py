@@ -16,6 +16,7 @@ Usage:
 import argparse
 import json
 import re
+import subprocess
 from datetime import datetime
 from pathlib import Path
 
@@ -27,8 +28,13 @@ GSEC_ROWS = {
 OIS_MMIFOR_ROWS = {"1 Year": "1Y", "2 Years": "2Y", "3 Years": "3Y", "5 Years": "5Y"}
 
 # Matches: "<label> <current> <1D> <1W> <1M> <3M> <1Y>"  (all numbers may be signed decimals)
+# NB: separator is same-line whitespace only (no \n). A \s+ separator would also match
+# across a line break, and since GSEC_ROWS labels can appear with only a bare label on
+# their own line (see PAIR_ROW_RE_TMPL below), that would let a label match the WRONG
+# row's numbers on the following line instead of correctly falling through to None.
 NUM = r"(-?\d+\.?\d*)"
-ROW_RE_TMPL = r"{label}\s+" + NUM + r"\s+" + NUM + r"\s+" + NUM + r"\s+" + NUM + r"\s+" + NUM + r"\s+" + NUM
+SEP = r"[ \t]+"
+ROW_RE_TMPL = r"{label}" + SEP + NUM + SEP + NUM + SEP + NUM + SEP + NUM + SEP + NUM + SEP + NUM
 
 # GOTCHA (found during testing against the real 03-Jul-2026 report): CCIL prints the
 # OIS table (Table 3: MIBOR-OIS) and the MMIFOR table (Table 4) as ONE combined block
@@ -38,8 +44,8 @@ ROW_RE_TMPL = r"{label}\s+" + NUM + r"\s+" + NUM + r"\s+" + NUM + r"\s+" + NUM +
 # We therefore parse OIS and MMIFOR together from one 12-value (or 6-value-then-dashes,
 # for 1Y where MMIFOR was discontinued in 2023) row match.
 NUM_OR_DASH = r"(-?\d+\.?\d*|-)"
-COMBINED_ROW_RE_TMPL = (r"{label}\s+" + (NUM + r"\s+") * 6 +
-                        (NUM_OR_DASH + r"\s+") * 5 + NUM_OR_DASH)
+COMBINED_ROW_RE_TMPL = (r"{label}" + SEP + (NUM + SEP) * 6 +
+                        (NUM_OR_DASH + SEP) * 5 + NUM_OR_DASH)
 
 
 def parse_ois_mmifor(text: str):
@@ -76,6 +82,39 @@ def parse_rows(text: str, row_map: dict) -> dict:
     return out
 
 
+# GOTCHA (found 06-Jul-2026 report): when Table 1's chart column squeezes the table,
+# pdftotext -layout can no longer fit "<label> <6 numbers>" on one line. Instead it
+# prints two row labels back-to-back, then the same two rows' values GROUPED BY
+# COLUMN (both current values, then both 1-Day values, then both 1-Week values, ...).
+# i.e. for labels [A, B]: current_A, current_B, 1D_A, 1D_B, 1W_A, 1W_B, 1M_A, 1M_B,
+# 3M_A, 3M_B, 1Y_A, 1Y_B - one number per line. GSEC_ROWS happens to list its 8 tenors
+# in exactly the pairs CCIL renders together (1Y/2Y, 5Y/10Y, 15Y/20Y, 30Y/10Y Bench),
+# so we parse two labels + 12 solo numbers at a time.
+PAIR_ROW_RE_TMPL = (
+    r"{label_a}\s*\n{label_b}\s*\n"
+    + r"".join(rf"\s*{NUM}\s*\n" for _ in range(11))
+    + rf"\s*{NUM}"  # last value's line may have trailing footnote text after it
+)
+
+
+def parse_rows_paired(text: str, row_map: dict) -> dict:
+    labels = list(row_map.items())
+    out = {}
+    for i in range(0, len(labels), 2):
+        (label_a, key_a), (label_b, key_b) = labels[i], labels[i + 1]
+        pattern = PAIR_ROW_RE_TMPL.format(label_a=re.escape(label_a), label_b=re.escape(label_b))
+        m = re.search(pattern, text)
+        if not m:
+            out[key_a] = None
+            out[key_b] = None
+            continue
+        vals = [float(x) for x in m.groups()]
+        current_a, current_b, d1_a, d1_b, w1_a, w1_b, m1_a, m1_b, m3_a, m3_b, y1_a, y1_b = vals
+        out[key_a] = {"current": current_a, "1D": d1_a, "1W": w1_a, "1M": m1_a, "3M": m3_a, "1Y": y1_a}
+        out[key_b] = {"current": current_b, "1D": d1_b, "1W": w1_b, "1M": m1_b, "3M": m3_b, "1Y": y1_b}
+    return out
+
+
 def find_date(all_text: str) -> str:
     m = re.search(r"Date:\s*(\d{2}-[A-Za-z]{3}-\d{4})", all_text)
     if m:
@@ -95,19 +134,42 @@ def main():
         return
 
     latest_dir = ccil_dirs[-1]  # assumes filename sort ~ date sort; adjust if needed
+    txt_files = sorted(latest_dir.glob("*.txt"), key=lambda p: int(p.stem) if p.stem.isdigit() else 0)
     all_text = ""
-    for txt_file in sorted(latest_dir.glob("*.txt"), key=lambda p: int(p.stem) if p.stem.isdigit() else 0):
+    for txt_file in txt_files:
         all_text += txt_file.read_text(errors="ignore") + "\n"
+
+    if not txt_files:
+        # Genuine (non-ZIP) PDF case: extract_reports.py just copies the raw PDF
+        # through, so there are no pre-rendered .txt pages - run pdftotext ourselves.
+        pdf_files = sorted(latest_dir.glob("*.pdf"))
+        for pdf_file in pdf_files:
+            proc = subprocess.run(["pdftotext", "-layout", str(pdf_file), "-"],
+                                   capture_output=True, text=True)
+            if proc.returncode == 0:
+                all_text += proc.stdout + "\n"
+            else:
+                print(f"WARNING: pdftotext failed on {pdf_file}: {proc.stderr.strip()}")
 
     report_date = find_date(all_text) or datetime.utcnow().strftime("%Y-%m-%d")
 
     ois, mmifor = parse_ois_mmifor(all_text)
 
+    gsec = parse_rows(all_text, GSEC_ROWS)
+    missing_gsec = [key for key, val in gsec.items() if val is None]
+    if missing_gsec:
+        # Fall back to the paired-column layout (see parse_rows_paired docstring)
+        # for whichever tenors the single-line regex couldn't find.
+        gsec_paired = parse_rows_paired(all_text, GSEC_ROWS)
+        for key in missing_gsec:
+            if gsec_paired.get(key) is not None:
+                gsec[key] = gsec_paired[key]
+
     result = {
         "report_date": report_date,
         "source": "CCIL Daily Analytics",
         "source_dir": str(latest_dir),
-        "gsec": parse_rows(all_text, GSEC_ROWS),
+        "gsec": gsec,
         "ois": ois,
         "mmifor": mmifor,
     }

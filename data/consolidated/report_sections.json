@@ -1,0 +1,37 @@
+{
+  "as_of": "2026-07-06",
+  "sections": {
+    "A": {
+      "signal": "Curve slope ~96bps, mildly steeper y/y",
+      "explanation": "10Y G-Sec (6.73%) minus 1Y G-Sec (5.77%) = 0.96pp (96bps) of positive slope. Using each tenor's own 1-year change-over column from CCIL (10Y +35bps y/y, 1Y +26bps y/y), the slope has widened by about 9bps versus a year ago (35bps - 26bps), i.e. from roughly 87bps to 96bps today. Both ends of the curve have risen over the past year, but the long end has risen slightly more.",
+      "tone": "neutral"
+    },
+    "B": {
+      "signal": "10Y benchmark at 6.69%, rallying hard short-term but still up y/y",
+      "explanation": "10Y Benchmark (6.94% GS 2036) is at 6.69% today, flat on the day (0bps) and down 3.2bps on the week. Over 1M and 3M it has rallied sharply: -27.2bps and -39.4bps respectively. Over 1Y it is still up 30.0bps, so today's level sits below the recent 1M/3M peak in yield but above where it was a year ago. Net read: a strong recent rally sitting on top of a higher year-ago base.",
+      "tone": "dovish"
+    },
+    "C": {
+      "signal": "MMIFOR-OIS FCY hedging premium 84-92bps, widened 29-39bps y/y",
+      "explanation": "Comparing CCIL's MMIFOR and MIBOR-OIS current levels for matching tenors: 2Y spread = 6.81% - 5.89% = 92bps; 3Y spread = 6.84% - 6.00% = 84bps; 5Y spread = 7.04% - 6.16% = 88bps. (1Y MMIFOR is discontinued since Jul-2023, so no 1Y spread.) Using each series' own 1-year change-over column, the spread itself has widened materially over the past year: 2Y by 80.15-41.02=39.1bps, 3Y by 74.32-45.01=29.3bps, 5Y by 77.16-46.66=30.5bps. FCY hedging via the MMIFOR route has gotten notably more expensive relative to onshore OIS over the past 12 months.",
+      "tone": "hawkish"
+    },
+    "D": {
+      "signal": "G-Sec supply premium over OIS: 2-29bps, compressing y/y at 2Y/5Y",
+      "explanation": "G-Sec minus OIS for matching tenors: 1Y = 5.77%-5.75% = 2bps; 2Y = 6.00%-5.89% = 11bps; 5Y = 6.45%-6.16% = 29bps. (No 3Y G-Sec tenor is published by CCIL, so the 3Y OIS point has no G-Sec match this run.) Using each series' 1-year change-over column, the premium has moved as follows over the past year: 1Y roughly flat (26.0-26.23=-0.2bps), 2Y narrowed by about 19bps (22.0-41.02=-19.0bps), 5Y narrowed by about 15bps (32.0-46.66=-14.7bps). The G-Sec supply premium over swaps has been compressing at the belly/long end even as absolute levels stay positive.",
+      "tone": "dovish"
+    }
+  },
+  "scorecard": {
+    "recommendation": "Short-end levels aren't available this run (no WSS data), so this reflects only the G-Sec/OIS/MMIFOR complex from today's CCIL report. The G-Sec curve is a normal, mildly steepening 96bps (10Y-1Y), with the long end (10Y benchmark) having rallied 27-39bps over the last one to three months even though it's still 30bps higher than a year ago - net neutral-to-dovish momentum on duration. FCY hedging via MMIFOR is expensive and getting more so (84-92bps over OIS, widened 29-39bps y/y), arguing against unhedged or MMIFOR-hedged foreign-currency borrowing right now. Meanwhile the G-Sec-over-OIS supply premium (2-29bps) has been compressing at 2Y/5Y, a mild positive for onshore government borrowing costs relative to swaps. On the numbers available today: favor onshore G-Sec/OIS-linked funding over MMIFOR-hedged FCY funding, and lean into the recent long-end rally cautiously given the higher year-ago base.",
+    "tone": "neutral"
+  },
+  "gaps": [
+    "Section E (short-end funding: T-Bills, WACR vs repo, CD/CP) omitted - no RBI WSS file was present in inbox/ this run, so history.json has no wss data.",
+    "Section F (long-term funding / bond yield matrix) omitted - no separate bond/Arete data source was present this run.",
+    "Section G (FX position: forward premia / USD data) omitted - no WSS forward-premia data this run. Note: the CCIL PDF does contain an FX forwards/premia table (e.g. Tom, GBP rows) but parse_ccil.py does not currently extract it, so it is not in history.json either; flagging for a future script update rather than eyeballing numbers from the PDF.",
+    "D: no 3Y G-Sec tenor exists in CCIL's published table, so the 3Y OIS point (6.00%) has no G-Sec-minus-OIS spread this run.",
+    "Automated CCIL download (scripts/fetch_ccil.py) failed this run (Playwright browser channel mismatch in this environment) - pipeline ran against the manually-dropped inbox/CCIL_DAILY_ANALYSIS_06_07_26.pdf instead.",
+    "history.json currently holds only a single day (2026-07-06) of CCIL data, so all changes described above are CCIL's own change-over columns (1D/1W/1M/3M/1Y), not a multi-day trend built from this dataset yet."
+  ]
+}
