@@ -13,29 +13,31 @@ Two ways to run the pipeline; pick one:
 | **Best for** | Individual use, avoiding token cost | Teams, or wanting a traditional always-on CI setup |
 
 Both paths run the exact same deterministic scripts (`extract_reports.py`,
-`parse_ccil.py`, `parse_wss.py`, `build_dataset.py`, `render_dashboard.py`,
-`render_pdf.py`) — the only difference is *who* writes the narrative analysis and
-*how that step gets billed*. Use one or the other, not both at once.
+`parse_ccil.py`, `parse_wss.py`, `build_dataset.py`, `render_markdown.py`,
+`render_html.py`, `render_pdf.py`) — the only difference is *who* writes the
+narrative analysis and *how that step gets billed*. Use one or the other, not
+both at once.
 
 ```
 you download WSS/Arete files manually (fetch_ccil.py attempts CCIL automatically)
         │
         ▼
-   drop into inbox/, push        (or a Routine/Action can run against what's already there)
+   drop into inbox/, push        (Routine picks up whatever's there on its own schedule)
         │
         ▼
-┌── either a Claude Code Routine, or GitHub Actions (daily-run.yml) ──┐
-│  1. fetch_ccil.py       -> best-effort automated CCIL download      │
-│  2. extract_reports.py  -> unzips the disguised-as-PDF files        │
-│  3. parse_ccil.py /                                                 │
-│     parse_wss.py        -> regex-pulls tables into data/raw/*.json  │
-│  4. build_dataset.py    -> merges into data/consolidated/history.json│
-│  5. ANALYSIS: either Claude (Routine, subscription) or               │
-│     run_analysis.py (API call, metered) -> report_sections.json     │
-│  6. render_dashboard.py -> templates/dashboard_template.jsx         │
-│  7. render_pdf.py       -> reportlab + matplotlib -> report.pdf     │
-│  8. commit + push outputs back to the repo                          │
-└──────────────────────────────────────────────────────────────────────┘
+┌── Claude Code Routine (primary) — or GitHub Actions, if you set that up instead ──┐
+│  1. fetch_ccil.py       -> best-effort automated CCIL download                    │
+│  2. extract_reports.py  -> unzips the disguised-as-PDF files                      │
+│  3. parse_ccil.py /                                                               │
+│     parse_wss.py        -> regex-pulls tables into data/raw/*.json                │
+│  4. build_dataset.py    -> merges into data/consolidated/history.json             │
+│  5. ANALYSIS: Claude writes report_sections.json directly in-session              │
+│     (or run_analysis.py -> API call, metered, GitHub Actions path only)           │
+│  6. render_markdown.py  -> report.md   (renders inline on github.com)             │
+│  7. render_html.py      -> report.html (self-contained, open in a browser)        │
+│  8. render_pdf.py       -> reportlab + matplotlib -> report.pdf                   │
+│  9. commit + push outputs back to the repo                                       │
+└────────────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## Path A: Claude Code Routine (no extra token cost)
@@ -156,10 +158,11 @@ you save it — so your only manual action is clicking "Download" in the browser
 | `data/raw/*.json` | Parsed fields for one day |
 | `data/consolidated/history.json` | Rolling time series across all days — this is what makes 3M/6M/9M/1Y trend charts possible without re-parsing everything each time |
 | `scripts/` | All pipeline steps, each runnable standalone for debugging |
-| `ROUTINE_PROMPT.md` | Paste-in prompt for the Claude Code Routine path (Path A) |
-| `templates/dashboard_template.jsx` | The dashboard, with a `DATA` constant injected at render time |
-| `outputs/YYYY-MM-DD/` | Final dashboard.jsx + report.pdf, committed back to the repo |
-| `.github/workflows/daily-run.yml` | Trigger + orchestration for the GitHub Actions path (Path B) |
+| `ROUTINE_PROMPT.md` | Paste-in prompt for the Claude Code Routine (primary path) |
+| `outputs/YYYY-MM-DD/report.md` | Renders inline on github.com — click it, no download needed |
+| `outputs/YYYY-MM-DD/report.html` | Self-contained styled version — download and open in a browser |
+| `outputs/YYYY-MM-DD/report.pdf` | Print-ready version |
+| `.github/workflows/daily-run.yml` | Only relevant if you set up the GitHub Actions alternative instead of the Routine — not used in the Routine path |
 
 ## What Claude does vs. what plain code does
 

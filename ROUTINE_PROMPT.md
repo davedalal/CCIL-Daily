@@ -62,9 +62,10 @@ Run the daily INR rates & FX intelligence pipeline in this repo:
      short-end vs long-end vs FCY-hedged vs supply-premium borrowing/hedging
      view, in plain prose, 3-5 sentences.
 
-6. Run `python scripts/render_dashboard.py --sections data/consolidated/report_sections.json --template templates/dashboard_template.jsx --out outputs/<today's date>/dashboard.jsx`.
-7. Run `python scripts/render_pdf.py --sections data/consolidated/report_sections.json --out outputs/<today's date>/report.pdf`.
-8. Commit `outputs/<today's date>/` and `data/consolidated/` with message
+6. Run `python scripts/render_markdown.py --sections data/consolidated/report_sections.json --out outputs/<today's date>/report.md`.
+7. Run `python scripts/render_html.py --sections data/consolidated/report_sections.json --out outputs/<today's date>/report.html`.
+8. Run `python scripts/render_pdf.py --sections data/consolidated/report_sections.json --out outputs/<today's date>/report.pdf`.
+9. Commit `outputs/<today's date>/` and `data/consolidated/` with message
    `Daily run: <today's date>`, and push.
 
 If any step fails in a way that isn't graceful (not the CCIL-fetch best-effort

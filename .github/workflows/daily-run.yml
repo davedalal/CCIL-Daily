@@ -57,8 +57,11 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python scripts/run_analysis.py --history data/consolidated/history.json --out data/consolidated/report_sections.json
 
-      - name: Render dashboard (.jsx)
-        run: python scripts/render_dashboard.py --sections data/consolidated/report_sections.json --template templates/dashboard_template.jsx --out outputs/${{ github.run_id }}/dashboard.jsx
+      - name: Render Markdown report (renders inline on GitHub)
+        run: python scripts/render_markdown.py --sections data/consolidated/report_sections.json --out outputs/${{ github.run_id }}/report.md
+
+      - name: Render HTML report (self-contained, download & open in a browser)
+        run: python scripts/render_html.py --sections data/consolidated/report_sections.json --out outputs/${{ github.run_id }}/report.html
 
       - name: Render PDF
         run: python scripts/render_pdf.py --sections data/consolidated/report_sections.json --out outputs/${{ github.run_id }}/report.pdf
