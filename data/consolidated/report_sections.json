@@ -1,0 +1,18 @@
+{
+  "as_of": "2026-07-06",
+  "sections": {},
+  "scorecard": {
+    "recommendation": "No recommendation can be made for this run: data/consolidated/history.json contains zero CCIL days and zero WSS weeks, so there is no underlying data for any of the seven signal sections (curve slope, 10Y trajectory, FCY hedging cost, supply premium, short-end funding, long-term funding, or FX position). This is the first run of the pipeline and inbox/ is empty aside from .gitkeep - no WSS/Arete files have been manually dropped yet, and the automated CCIL fetch (scripts/fetch_ccil.py) could not reach ccilindia.com from this environment due to a network/proxy restriction (ERR_TUNNEL_CONNECTION_FAILED), not bot detection or a report template change. Once a CCIL and/or WSS file is dropped into inbox/ and the pipeline re-run, sections will populate from real parsed numbers. No borrowing/hedging view is offered today given the total absence of data.",
+    "tone": "neutral"
+  },
+  "gaps": [
+    "Section A (10Y-1Y G-Sec curve slope): no data - history.json has zero CCIL days.",
+    "Section B (10Y benchmark trajectory): no data - history.json has zero CCIL days.",
+    "Section C (MMIFOR vs OIS, FCY hedging cost): no data - history.json has zero CCIL days.",
+    "Section D (G-Sec minus OIS, supply premium): no data - history.json has zero CCIL days.",
+    "Section E (short-end funding - T-Bills, WACR vs repo, CD/CP): no data - history.json has zero WSS weeks.",
+    "Section F (long-term funding, bond yield matrix): no data - history.json has zero WSS weeks.",
+    "Section G (FX position - forward premia / USD data): no data - not present in history.json.",
+    "Root cause: inbox/ contained only .gitkeep (no manually-dropped WSS/Arete files) and the automated CCIL fetch failed with a network/proxy error (ERR_TUNNEL_CONNECTION_FAILED) specific to this run environment, not a CCIL bot-detection block or template change - fetch_ccil.py's regex and page logic were not the failure point."
+  ]
+}
