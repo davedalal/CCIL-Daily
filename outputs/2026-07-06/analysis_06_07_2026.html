@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>INR Rates & FX Dashboard</title>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+body{
+    margin:0;
+    padding:20px;
+    background:#0a0e17;
+    color:#e6edf3;
+    font-family:monospace;
+}
+
+.panel{
+    background:#0f1420;
+    border:1px solid #1e2940;
+    border-radius:8px;
+    padding:16px;
+    margin-bottom:16px;
+}
+
+.title{
+    font-size:22px;
+    font-weight:bold;
+    color:#f0b429;
+    margin-bottom:20px;
+}
+
+.section-title{
+    color:#f0b429;
+    font-weight:bold;
+    margin-bottom:8px;
+}
+
+.tone{
+    font-size:11px;
+    font-weight:bold;
+    text-transform:uppercase;
+}
+
+.hawkish{color:#f85149;}
+.dovish{color:#3fb950;}
+.neutral{color:#f0b429;}
+
+.gaps{
+    background:#3a2a0022;
+    border:1px solid #8a6a1f;
+    color:#f0b429;
+    font-size:11px;
+    padding:12px;
+    border-radius:6px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="title" id="title"></div>
+
+<div class="panel">
+    <div class="section-title">Scorecard</div>
+    <p id="recommendation"></p>
+</div>
+
+<div class="panel">
+    <canvas id="chart" height="120"></canvas>
+</div>
+
+<div id="sections"></div>
+
+<div id="gaps"></div>
+
+<script>
+
+const DATA = {
+    /* paste your JSON here */
+};
+
+const dates = Object.keys(DATA.ccil || {}).sort();
+
+document.getElementById("title").textContent =
+    "INR RATES & FX DAILY — " +
+    (DATA.sections_meta?.as_of || dates[dates.length-1] || "");
+
+document.getElementById("recommendation").textContent =
+    DATA.sections_meta?.scorecard?.recommendation || "";
+
+const labels = [];
+const oneY = [];
+const tenY = [];
+
+dates.forEach(d=>{
+    labels.push(d);
+    oneY.push(DATA.ccil[d]?.gsec?.["1Y"]?.current ?? null);
+    tenY.push(DATA.ccil[d]?.gsec?.["10Y"]?.current ?? null);
+});
+
+new Chart(document.getElementById("chart"),{
+    type:"line",
+    data:{
+        labels,
+        datasets:[
+            {
+                label:"1Y G-Sec",
+                data:oneY,
+                borderColor:"#3fb950",
+                tension:0.3
+            },
+            {
+                label:"10Y G-Sec",
+                data:tenY,
+                borderColor:"#f0b429",
+                tension:0.3
+            }
+        ]
+    },
+    options:{
+        responsive:true,
+        maintainAspectRatio:false,
+        plugins:{
+            legend:{
+                labels:{color:"#e6edf3"}
+            }
+        },
+        scales:{
+            x:{
+                ticks:{color:"#8b949e"},
+                grid:{color:"#1c2333"}
+            },
+            y:{
+                ticks:{color:"#8b949e"},
+                grid:{color:"#1c2333"}
+            }
+        }
+    }
+});
+
+const sectionsDiv = document.getElementById("sections");
+
+["A","B","C","D","E","F","G"].forEach(id=>{
+
+    const s = DATA.sections_meta?.sections?.[id];
+    if(!s) return;
+
+    const card = document.createElement("div");
+    card.className="panel";
+
+    card.innerHTML=`
+        <div class="section-title">${id}. ${s.signal}</div>
+        <p>${s.explanation}</p>
+        <div class="tone ${s.tone}">${s.tone}</div>
+    `;
+
+    sectionsDiv.appendChild(card);
+
+});
+
+const gaps = DATA.sections_meta?.gaps || [];
+
+if(gaps.length){
+
+    const div=document.getElementById("gaps");
+    div.className="gaps";
+
+    gaps.forEach(g=>{
+        const p=document.createElement("div");
+        p.textContent="⚠ "+g;
+        div.appendChild(p);
+    });
+
+}
+
+</script>
+
+</body>
+</html>
